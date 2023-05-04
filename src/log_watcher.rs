@@ -23,7 +23,6 @@ pub enum ErrorKind {
 pub struct LogError {
     pub kind: ErrorKind,
     pub path: String,
-    log_watcher: Arc<Mutex<LogWatcher>>,
 }
 
 impl LogError {
@@ -59,13 +58,42 @@ pub type LogCallback =
 
 pub struct LogWatcher {
     log_callbacks: HashMap<String, LogCallback>,
+    watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
 impl LogWatcher {
     pub fn new() -> Self {
         Self {
             log_callbacks: HashMap::new(),
+            watcher: Arc::new(Mutex::new(None)),
         }
+    }
+
+    pub async fn change_path(&mut self, old_path: &str, new_path: &str) -> Result<(), Error> {
+        if let Some(callback) = self.log_callbacks.remove(old_path) {
+            self.log_callbacks.insert(new_path.to_owned(), callback);
+            let mut watcher = self.watcher.lock().await;
+            if let Some(watcher) = &mut *watcher {
+                watcher
+                    .unwatch(Path::new(old_path))
+                    .map_err(|e| Error::EventError(e))?;
+                watcher
+                    .watch(Path::new(new_path), RecursiveMode::NonRecursive)
+                    .map_err(|e| Error::EventError(e))?;
+            }
+        }
+        Ok(())
+    }
+
+    pub async fn stop_monitoring(&mut self, path: &str) -> Result<(), Error> {
+        self.log_callbacks.remove(path);
+        let mut watcher = self.watcher.lock().await;
+        if let Some(watcher) = &mut *watcher {
+            watcher
+                .unwatch(Path::new(path))
+                .map_err(|e| Error::EventError(e))?;
+        }
+        Ok(())
     }
 
     // helper function to convert a relative path into an absolute path
@@ -103,10 +131,15 @@ impl LogWatcher {
 
         let config = notify::Config::default().with_poll_interval(poll_interval);
 
-        let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
+        let watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
+        *self.watcher.lock().await = Some(watcher);
 
         for path in self.log_callbacks.keys() {
-            watcher
+            self.watcher
+                .lock()
+                .await
+                .as_mut()
+                .unwrap()
                 .watch(Path::new(&path), RecursiveMode::NonRecursive)
                 .map_err(|e| Error::EventError(e))?;
         }
