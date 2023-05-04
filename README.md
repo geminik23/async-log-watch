@@ -45,7 +45,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [x] FIXED: When convert into absolute filepath, tilde('~') is used as folder name.
 - [x] FIXED: At the first time, watcher read the first line.
 - [x] Error handling for file read errors
-- [ ] Improve error handling with the `thiserror` library. and Remove the println! statement.
+- [x] Improve error handling with the `thiserror` library. - file errors occurs in spawn. 
+- [ ] Notify error through callback
 
 
 ## Future Works

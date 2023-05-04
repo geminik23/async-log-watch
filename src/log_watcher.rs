@@ -12,6 +12,18 @@ use std::sync::mpsc::channel;
 
 use shellexpand::tilde;
 
+#[derive(Debug, thiserror::Error)]
+pub enum Error {
+    // #[error("failed to open file '{0}' - {1}")]
+    // FileOpenError(String, std::io::Error),
+    // #[error("failed to seek file '{0}' - {1}")]
+    // FileSeekError(String, std::io::Error),
+    #[error("event error - {0}")]
+    EventError(notify::Error),
+    #[error("failed to receive data - {0}")]
+    RecvError(std::sync::mpsc::RecvError),
+}
+
 pub type LogCallback =
     Arc<dyn Fn(String) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> + Send + Sync>;
 
@@ -56,7 +68,7 @@ impl LogWatcher {
     }
 
     // Start monitoring
-    pub async fn monitoring(&self, poll_interval: std::time::Duration) -> notify::Result<()> {
+    pub async fn monitoring(&self, poll_interval: std::time::Duration) -> Result<(), Error> {
         let (tx, rx) = channel();
 
         let config = notify::Config::default().with_poll_interval(poll_interval);
@@ -64,7 +76,9 @@ impl LogWatcher {
         let mut watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
 
         for path in self.log_callbacks.keys() {
-            watcher.watch(Path::new(&path), RecursiveMode::NonRecursive)?;
+            watcher
+                .watch(Path::new(&path), RecursiveMode::NonRecursive)
+                .map_err(|e| Error::EventError(e))?;
         }
 
         let file_positions = Arc::new(Mutex::new(HashMap::<String, u64>::new()));
@@ -124,7 +138,7 @@ impl LogWatcher {
                                                         }
                                                     }
                                                     Err(e) => {
-                                                        println!(
+                                                        eprintln!(
                                                             "Failed to seek file '{}': {:?}",
                                                             path_str, e
                                                         );
@@ -132,7 +146,7 @@ impl LogWatcher {
                                                 }
                                             }
                                             Err(e) => {
-                                                println!(
+                                                eprintln!(
                                                     "Failed to open file '{}': {:?}",
                                                     path_str, e
                                                 );
@@ -144,11 +158,9 @@ impl LogWatcher {
                         }
                         _ => {}
                     },
-                    Err(e) => {
-                        println!("Event error: {:?}", e);
-                    }
+                    Err(e) => return Err(Error::EventError(e)),
                 },
-                Err(e) => println!("Watch error: {:?}", e),
+                Err(e) => return Err(Error::RecvError(e)),
             }
         }
     }
