@@ -16,7 +16,7 @@ async-log-watch= "0.1"
 ### Example
 
 ```rust
-use async_log_watch::LogWatcher;
+use async_log_watch::{LogWatcher, LogError};
 use async_std::task;
 
 #[async_std::main]
@@ -25,9 +25,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let filepath = "/path/to/log-out.txt";
     log_watcher
-        .register(filepath, |line: String| {
+        .register(filepath, |line: String, err: Option<LogError>| {
             async move {
-                println!("New log line: {}", line);
+				if err.is_none(){
+					println!("New log line: {}", line);
+				}
            }
         })
         .await;
