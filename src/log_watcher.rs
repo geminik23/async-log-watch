@@ -13,11 +13,41 @@ use std::sync::mpsc::channel;
 use shellexpand::tilde;
 
 #[derive(Debug, thiserror::Error)]
+pub enum ErrorKind {
+    #[error("failed to open file - {0}")]
+    FileOpenError(std::io::Error),
+    #[error("failed to seek file - {0}")]
+    FileSeekError(std::io::Error),
+}
+
+pub struct LogError {
+    pub kind: ErrorKind,
+    pub path: String,
+    log_watcher: Arc<Mutex<LogWatcher>>,
+}
+
+impl LogError {
+    // Display the error message
+    pub fn display_error(&self) -> String {
+        match &self.kind {
+            ErrorKind::FileOpenError(err) => {
+                format!("{:?} - {}", err, self.path)
+            }
+            ErrorKind::FileSeekError(err) => {
+                format!("{:?} - {}", err, self.path)
+            }
+        }
+    }
+}
+
+impl std::fmt::Display for LogError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display_error())
+    }
+}
+
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
-    // #[error("failed to open file '{0}' - {1}")]
-    // FileOpenError(String, std::io::Error),
-    // #[error("failed to seek file '{0}' - {1}")]
-    // FileSeekError(String, std::io::Error),
     #[error("event error - {0}")]
     EventError(notify::Error),
     #[error("failed to receive data - {0}")]

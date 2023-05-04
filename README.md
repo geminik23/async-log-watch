@@ -48,6 +48,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [x] Improve error handling with the `thiserror` library. - file errors occurs in spawn. 
 - [ ] Notify error through callback
 
+- [ ] FIX : poll_interval issue.
+
 
 ## Future Works
 
