@@ -82,8 +82,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "async-log-watcher"
-version = "0.1.0"
+name = "async-log-watch"
+version = "0.1.1"
 dependencies = [
  "async-std",
  "notify",

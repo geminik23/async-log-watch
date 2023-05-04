@@ -1,4 +1,4 @@
-use async_log_watcher::LogWatcher;
+use async_log_watch::LogWatcher;
 use async_std::channel::bounded;
 use async_std::fs::File;
 use async_std::io::WriteExt;

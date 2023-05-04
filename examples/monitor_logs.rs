@@ -1,4 +1,4 @@
-use async_log_watcher::LogWatcher;
+use async_log_watch::LogWatcher;
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
