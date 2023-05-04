@@ -1,12 +1,20 @@
 [package]
-name = "log-watcher"
+name = "async-log-watcher"
 version = "0.1.0"
-edition = "2018"
+authors = ["Jaemin Kim <geminik23@gmail.com>"]
+edition = "2021"
+description = "A simple Rust library to monitor log files and trigger an async callback when a new line is added."
+license = "MIT"
+readme = "README.md"
+repository = "https://github.com/geminik23/async-log-watcher"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-log="0.4"
-dotenv="0.15"
-env_logger="0.9"
-notify="4.0"
+async-std = {version="1.12", features=["attributes"]}
+notify = "5.1"
+shellexpand = "3.1"
+
+[lib]
+name = "async_log_watcher"
+path = "src/lib.rs"
+
