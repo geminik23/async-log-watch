@@ -1,4 +1,4 @@
-use async_log_watch::LogWatcher;
+use async_log_watch::{LogError, LogWatcher};
 use async_std::{fs::File, io::prelude::*, task};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
@@ -27,11 +27,13 @@ async fn log_watcher_test() {
 
     let detected_line_count_clone = detected_line_count.clone();
     log_watcher
-        .register(log_path, move |line: String| {
+        .register(log_path, move |line: String, err: Option<LogError>| {
             let detected_line_count = detected_line_count_clone.clone();
             async move {
-                println!("New line detected: {}", line);
-                detected_line_count.fetch_add(1, Ordering::Relaxed);
+                if err.is_none() {
+                    println!("New line detected: {}", line);
+                    detected_line_count.fetch_add(1, Ordering::Relaxed);
+                }
             }
         })
         .await;
@@ -49,12 +51,12 @@ async fn log_watcher_test() {
     let write_handle = task::spawn(write_lines(
         log_path,
         test_lines.clone(),
-        Duration::from_secs(1), // write one line every 1 sec.
+        Duration::from_millis(500), // write one line every 1 sec.
     ));
 
     write_handle.await;
 
-    task::sleep(Duration::from_secs(1)).await;
+    task::sleep(Duration::from_millis(500)).await;
 
     // remove test log file
     async_std::fs::remove_file(log_path).await.unwrap();

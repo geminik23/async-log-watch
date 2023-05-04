@@ -1,3 +1,3 @@
 mod log_watcher;
 
-pub use log_watcher::{LogCallback, LogWatcher};
+pub use log_watcher::{LogCallback, LogError, LogWatcher};

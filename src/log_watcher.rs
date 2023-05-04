@@ -20,9 +20,11 @@ pub enum ErrorKind {
     FileSeekError(std::io::Error),
 }
 
+#[derive(Debug)]
 pub struct LogError {
     pub kind: ErrorKind,
     pub path: String,
+    // watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
 impl LogError {
@@ -53,8 +55,11 @@ pub enum Error {
     RecvError(std::sync::mpsc::RecvError),
 }
 
-pub type LogCallback =
-    Arc<dyn Fn(String) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> + Send + Sync>;
+pub type LogCallback = Arc<
+    dyn Fn(String, Option<LogError>) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>
+        + Send
+        + Sync,
+>;
 
 pub struct LogWatcher {
     log_callbacks: HashMap<String, LogCallback>,
@@ -69,13 +74,17 @@ impl LogWatcher {
         }
     }
 
-    pub async fn change_path(&mut self, old_path: &str, new_path: &str) -> Result<(), Error> {
-        if let Some(callback) = self.log_callbacks.remove(old_path) {
+    pub async fn change_file_path(&mut self, old_path: &str, new_path: &str) -> Result<(), Error> {
+        // change into absolute path
+        let old_path = self.make_absolute_path(&Path::new(old_path));
+        let old_path = old_path.into_os_string().into_string().unwrap();
+
+        if let Some(callback) = self.log_callbacks.remove(&old_path) {
             self.log_callbacks.insert(new_path.to_owned(), callback);
             let mut watcher = self.watcher.lock().await;
             if let Some(watcher) = &mut *watcher {
                 watcher
-                    .unwatch(Path::new(old_path))
+                    .unwatch(Path::new(&old_path))
                     .map_err(|e| Error::EventError(e))?;
                 watcher
                     .watch(Path::new(new_path), RecursiveMode::NonRecursive)
@@ -85,12 +94,16 @@ impl LogWatcher {
         Ok(())
     }
 
-    pub async fn stop_monitoring(&mut self, path: &str) -> Result<(), Error> {
-        self.log_callbacks.remove(path);
+    pub async fn stop_monitoring_file(&mut self, path: &str) -> Result<(), Error> {
+        // change into absolute path
+        let path = self.make_absolute_path(&Path::new(path));
+        let path = path.into_os_string().into_string().unwrap();
+
+        self.log_callbacks.remove(&path);
         let mut watcher = self.watcher.lock().await;
         if let Some(watcher) = &mut *watcher {
             watcher
-                .unwatch(Path::new(path))
+                .unwatch(Path::new(&path))
                 .map_err(|e| Error::EventError(e))?;
         }
         Ok(())
@@ -111,15 +124,17 @@ impl LogWatcher {
     // register a file path and its associated callback function.
     pub async fn register<P: AsRef<Path>, F, Fut>(&mut self, path: P, callback: F)
     where
-        F: Fn(String) -> Fut + Send + Sync + 'static,
+        F: Fn(String, Option<LogError>) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + Sync + 'static,
     {
         let path = self.make_absolute_path(path.as_ref());
         let path = path.into_os_string().into_string().unwrap();
 
         let callback = Arc::new(
-            move |line: String| -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
-                Box::pin(callback(line))
+            move |line: String,
+                  error: Option<LogError>|
+                  -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+                Box::pin(callback(line, error))
             },
         );
         self.log_callbacks.insert(path, callback);
@@ -197,22 +212,24 @@ impl LogWatcher {
                                                                     line.pop();
                                                                 }
                                                             }
-                                                            callback(line).await;
+                                                            callback(line, None).await;
                                                         }
                                                     }
                                                     Err(e) => {
-                                                        eprintln!(
-                                                            "Failed to seek file '{}': {:?}",
-                                                            path_str, e
-                                                        );
+                                                        let log_error = LogError {
+                                                            kind: ErrorKind::FileSeekError(e),
+                                                            path: path_str.clone(),
+                                                        };
+                                                        callback("".into(), Some(log_error)).await;
                                                     }
                                                 }
                                             }
                                             Err(e) => {
-                                                eprintln!(
-                                                    "Failed to open file '{}': {:?}",
-                                                    path_str, e
-                                                );
+                                                let log_error = LogError {
+                                                    kind: ErrorKind::FileOpenError(e),
+                                                    path: path_str.clone(),
+                                                };
+                                                callback("".into(), Some(log_error)).await;
                                             }
                                         }
                                     });
@@ -249,7 +266,8 @@ async fn find_last_line(reader: &mut BufReader<File>) -> u64 {
 
 #[cfg(test)]
 mod tests {
-    use async_std::prelude::*;
+    use super::*;
+    use async_std::io::prelude::*;
     use async_std::{
         fs::File,
         io::{BufReader, WriteExt},
@@ -288,5 +306,52 @@ mod tests {
         assert_eq!(line, "3\n");
 
         let _ = async_std::fs::remove_file(filepath).await; // Remove the file if it exists
+    }
+
+    #[async_std::test]
+    async fn test_log_watcher() {
+        let mut log_watcher = LogWatcher::new();
+
+        let log_file_1 = "test-log1.txt";
+        let log_file_2 = "test-log2.txt";
+        let log_file_3 = "test-log3.txt";
+
+        // create log files
+        let mut file_1 = File::create(log_file_1).await.unwrap();
+        let mut file_2 = File::create(log_file_2).await.unwrap();
+        let mut file_3 = File::create(log_file_3).await.unwrap();
+
+        log_watcher.register(log_file_1, |_, _| async {}).await;
+        log_watcher.register(log_file_2, |_, _| async {}).await;
+
+        // write data to log files
+        file_1.write_all(b"line 1\n").await.unwrap();
+        file_1.sync_all().await.unwrap();
+        file_2.write_all(b"line 2\n").await.unwrap();
+        file_2.sync_all().await.unwrap();
+
+        // stop monitoring log_file_1
+        log_watcher.stop_monitoring_file(log_file_1).await.unwrap();
+
+        // change the path of log_file_2 to log_file_3
+        log_watcher
+            .change_file_path(log_file_2, log_file_3)
+            .await
+            .unwrap();
+
+        // write data to log files
+        file_1.write_all(b"line 3\n").await.unwrap();
+        file_1.sync_all().await.unwrap();
+        file_3.write_all(b"line 4\n").await.unwrap();
+        file_3.sync_all().await.unwrap();
+
+        assert!(!log_watcher.log_callbacks.contains_key(log_file_1));
+        assert!(!log_watcher.log_callbacks.contains_key(log_file_2));
+        assert!(log_watcher.log_callbacks.contains_key(log_file_3));
+
+        // remove the test log files
+        async_std::fs::remove_file(log_file_1).await.unwrap();
+        async_std::fs::remove_file(log_file_2).await.unwrap();
+        async_std::fs::remove_file(log_file_3).await.unwrap();
     }
 }

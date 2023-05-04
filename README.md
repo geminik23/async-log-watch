@@ -46,8 +46,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [x] FIXED: At the first time, watcher read the first line.
 - [x] Error handling for file read errors
 - [x] Improve error handling with the `thiserror` library. - file errors occurs in spawn. 
-- [ ] Notify error through callback
-
+- [x] Notify error through callback
+- [x] Added methods : stop_monitoring_file and change_file_path
+- [x] FIXED: absolute path in added methods | test code 
 - [ ] FIX : poll_interval issue.
 
 

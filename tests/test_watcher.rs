@@ -1,4 +1,4 @@
-use async_log_watch::LogWatcher;
+use async_log_watch::{LogError, LogWatcher};
 use async_std::channel::bounded;
 use async_std::fs::File;
 use async_std::io::WriteExt;
@@ -16,10 +16,12 @@ async fn test_log_watcher() {
     let mut file = File::create(filepath).await.unwrap();
 
     log_watcher
-        .register(filepath, move |line: String| {
+        .register(filepath, move |line: String, err: Option<LogError>| {
             let tx = tx.clone();
             async move {
-                tx.try_send(line).unwrap();
+                if err.is_none() {
+                    tx.try_send(line).unwrap();
+                }
             }
         })
         .await;
