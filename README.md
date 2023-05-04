@@ -42,8 +42,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [x] Support async callbacks
 - [x] Allow monitoring multiple log files simultaneously
 - [X] Update with new version of dependencies.
-- [x] FIX: When convert into absolute filepath, tilde('~') is used as folder name.
-- [ ] FIX: At the first time, watcher read the first line.
+- [x] FIXED: When convert into absolute filepath, tilde('~') is used as folder name.
+- [x] FIXED: At the first time, watcher read the first line.
 - [ ] Add log::trace
 
 ## Future Works

@@ -77,25 +77,42 @@ impl LogWatcher {
                             for path in paths {
                                 let path_str = path.clone().into_os_string().into_string().unwrap();
                                 if let Some(callback) = self.log_callbacks.get(&path_str) {
-                                    // let path_str = path.to_string_lossy().to_string();
                                     let callback = Arc::clone(callback);
                                     let file_positions_clone = Arc::clone(&file_positions);
 
                                     task::spawn(async move {
                                         let mut file_positions = file_positions_clone.lock().await;
-                                        let position =
-                                            file_positions.entry(path_str.clone()).or_insert(0);
+                                        let position = file_positions
+                                            .entry(path_str.clone())
+                                            .or_insert(std::u64::MAX);
 
                                         let file = File::open(&path_str).await.unwrap();
                                         let mut reader = BufReader::new(file);
                                         let mut line = String::new();
 
+                                        // need to set initial position
+                                        if *position == std::u64::MAX {
+                                            *position = find_last_line(&mut reader).await;
+                                        }
+
                                         reader
                                             .seek(std::io::SeekFrom::Start(*position))
                                             .await
                                             .unwrap();
-                                        if reader.read_line(&mut line).await.unwrap() > 0 {
+
+                                        // check if a full line has been read
+                                        if reader.read_line(&mut line).await.unwrap() > 0
+                                            && line.ends_with('\n')
+                                        {
                                             *position += line.len() as u64;
+
+                                            // remove trailing newline character, if present
+                                            if line.ends_with('\n') {
+                                                line.pop();
+                                                if line.ends_with('\r') {
+                                                    line.pop();
+                                                }
+                                            }
                                             callback(line).await;
                                         }
                                     });
@@ -111,5 +128,67 @@ impl LogWatcher {
                 Err(e) => println!("Watch error: {:?}", e),
             }
         }
+    }
+}
+
+// find the position of last line.
+async fn find_last_line(reader: &mut BufReader<File>) -> u64 {
+    let mut last_line_start = 0;
+    let mut last_line = String::new();
+    let mut current_position = 0;
+
+    while let Ok(len) = reader.read_line(&mut last_line).await {
+        if len == 0 || !last_line.ends_with('\n') {
+            break;
+        }
+        last_line_start = current_position;
+        current_position += len as u64;
+        last_line.clear();
+    }
+
+    last_line_start
+}
+
+#[cfg(test)]
+mod tests {
+    use async_std::prelude::*;
+    use async_std::{
+        fs::File,
+        io::{BufReader, WriteExt},
+    };
+
+    use super::find_last_line;
+    #[async_std::test]
+    async fn test_find_last_line() {
+        //
+        let filepath = "test-log.txt";
+
+        let _ = async_std::fs::remove_file(filepath).await; // Remove the file if it exists
+
+        let mut file = File::create(filepath).await.unwrap();
+
+        file.write_all(b"0\n").await.unwrap();
+        file.write_all(b"1\n").await.unwrap();
+        file.write_all(b"2\n").await.unwrap();
+        file.write_all(b"3\n").await.unwrap();
+        file.flush().await.unwrap();
+
+        let ofile = File::open(&filepath).await.unwrap();
+        let mut reader = BufReader::new(ofile);
+        let position = find_last_line(&mut reader).await;
+
+        // assert last line position
+        assert_eq!(position, 6);
+
+        let mut line = String::new();
+        reader
+            .seek(std::io::SeekFrom::Start(position))
+            .await
+            .unwrap();
+        reader.read_line(&mut line).await.unwrap();
+        // assert last line
+        assert_eq!(line, "3\n");
+
+        let _ = async_std::fs::remove_file(filepath).await; // Remove the file if it exists
     }
 }

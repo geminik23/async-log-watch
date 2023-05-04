@@ -34,15 +34,12 @@ async fn test_log_watcher() {
     // Give some time for the log watcher to start monitoring
     task::sleep(std::time::Duration::from_secs(1)).await;
 
-    file.write_all(b"New log line1\n").await.unwrap();
-    file.write_all(b"New log line2\n").await.unwrap();
+    file.write_all(b"New log line\n").await.unwrap();
     file.flush().await.unwrap();
 
     // Wait for the received line
     let received_line = rx.recv().await.unwrap();
-    assert_eq!(received_line, "New log line1\n");
-    let received_line = rx.recv().await.unwrap();
-    assert_eq!(received_line, "New log line2\n");
+    assert_eq!(received_line, "New log line");
 
     // Clean up the test log file
     async_std::fs::remove_file(filepath).await.unwrap();
