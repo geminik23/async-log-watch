@@ -86,34 +86,57 @@ impl LogWatcher {
                                             .entry(path_str.clone())
                                             .or_insert(std::u64::MAX);
 
-                                        let file = File::open(&path_str).await.unwrap();
-                                        let mut reader = BufReader::new(file);
-                                        let mut line = String::new();
+                                        // file open
+                                        match File::open(&path_str).await {
+                                            Ok(file) => {
+                                                let mut reader = BufReader::new(file);
+                                                let mut line = String::new();
 
-                                        // need to set initial position
-                                        if *position == std::u64::MAX {
-                                            *position = find_last_line(&mut reader).await;
-                                        }
+                                                // need to set initial position
+                                                if *position == std::u64::MAX {
+                                                    *position = find_last_line(&mut reader).await;
+                                                }
 
-                                        reader
-                                            .seek(std::io::SeekFrom::Start(*position))
-                                            .await
-                                            .unwrap();
+                                                // seek from *position
+                                                match reader
+                                                    .seek(std::io::SeekFrom::Start(*position))
+                                                    .await
+                                                {
+                                                    Ok(_) => {
+                                                        // check if a full line has been read
+                                                        if reader
+                                                            .read_line(&mut line)
+                                                            .await
+                                                            .unwrap()
+                                                            > 0
+                                                            && line.ends_with('\n')
+                                                        {
+                                                            *position += line.len() as u64;
 
-                                        // check if a full line has been read
-                                        if reader.read_line(&mut line).await.unwrap() > 0
-                                            && line.ends_with('\n')
-                                        {
-                                            *position += line.len() as u64;
-
-                                            // remove trailing newline character, if present
-                                            if line.ends_with('\n') {
-                                                line.pop();
-                                                if line.ends_with('\r') {
-                                                    line.pop();
+                                                            // remove trailing newline character, if present
+                                                            if line.ends_with('\n') {
+                                                                line.pop();
+                                                                if line.ends_with('\r') {
+                                                                    line.pop();
+                                                                }
+                                                            }
+                                                            callback(line).await;
+                                                        }
+                                                    }
+                                                    Err(e) => {
+                                                        println!(
+                                                            "Failed to seek file '{}': {:?}",
+                                                            path_str, e
+                                                        );
+                                                    }
                                                 }
                                             }
-                                            callback(line).await;
+                                            Err(e) => {
+                                                println!(
+                                                    "Failed to open file '{}': {:?}",
+                                                    path_str, e
+                                                );
+                                            }
                                         }
                                     });
                                 }

@@ -10,7 +10,7 @@ Add `async-log-watch` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-async-log-watch= "0.1.0"
+async-log-watch= "0.1"
 ```
 
 ### Example
@@ -44,14 +44,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 - [X] Update with new version of dependencies.
 - [x] FIXED: When convert into absolute filepath, tilde('~') is used as folder name.
 - [x] FIXED: At the first time, watcher read the first line.
-- [ ] Add log::trace
+- [x] Error handling for file read errors
+- [ ] Improve error handling with the `thiserror` library. and Remove the println! statement.
+
 
 ## Future Works
 
-- Add error handling for file read errors 
 - Add support for log file rotation 
-- Add database to store the last line number. 
-- Implement a more efficient log file monitoring mechanism
 - Add filtering options to process specific log lines based on patterns
 
 ## License
