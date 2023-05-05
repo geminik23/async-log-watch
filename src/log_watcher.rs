@@ -24,7 +24,6 @@ pub enum ErrorKind {
 pub struct LogError {
     pub kind: ErrorKind,
     pub path: String,
-    // watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
 impl LogError {
@@ -62,14 +61,14 @@ pub type LogCallback = Arc<
 >;
 
 pub struct LogWatcher {
-    log_callbacks: HashMap<String, LogCallback>,
+    log_callbacks: Arc<Mutex<HashMap<String, LogCallback>>>,
     watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
 impl LogWatcher {
     pub fn new() -> Self {
         Self {
-            log_callbacks: HashMap::new(),
+            log_callbacks: Arc::new(Mutex::new(HashMap::new())),
             watcher: Arc::new(Mutex::new(None)),
         }
     }
@@ -79,8 +78,12 @@ impl LogWatcher {
         let old_path = self.make_absolute_path(&Path::new(old_path));
         let old_path = old_path.into_os_string().into_string().unwrap();
 
-        if let Some(callback) = self.log_callbacks.remove(&old_path) {
-            self.log_callbacks.insert(new_path.to_owned(), callback);
+        let callback = self.log_callbacks.lock().await.remove(&old_path);
+        if let Some(callback) = callback {
+            self.log_callbacks
+                .lock()
+                .await
+                .insert(new_path.to_owned(), callback);
             let mut watcher = self.watcher.lock().await;
             if let Some(watcher) = &mut *watcher {
                 watcher
@@ -99,7 +102,7 @@ impl LogWatcher {
         let path = self.make_absolute_path(&Path::new(path));
         let path = path.into_os_string().into_string().unwrap();
 
-        self.log_callbacks.remove(&path);
+        self.log_callbacks.lock().await.remove(&path);
         let mut watcher = self.watcher.lock().await;
         if let Some(watcher) = &mut *watcher {
             watcher
@@ -137,7 +140,7 @@ impl LogWatcher {
                 Box::pin(callback(line, error))
             },
         );
-        self.log_callbacks.insert(path, callback);
+        self.log_callbacks.lock().await.insert(path, callback);
     }
 
     // Start monitoring
@@ -149,7 +152,7 @@ impl LogWatcher {
         let watcher: RecommendedWatcher = Watcher::new(tx, config).unwrap();
         *self.watcher.lock().await = Some(watcher);
 
-        for path in self.log_callbacks.keys() {
+        for path in self.log_callbacks.lock().await.keys() {
             self.watcher
                 .lock()
                 .await
@@ -168,11 +171,18 @@ impl LogWatcher {
                             let paths = &event.paths;
                             for path in paths {
                                 let path_str = path.clone().into_os_string().into_string().unwrap();
-                                if let Some(callback) = self.log_callbacks.get(&path_str) {
-                                    let callback = Arc::clone(callback);
-                                    let file_positions_clone = Arc::clone(&file_positions);
 
-                                    task::spawn(async move {
+                                // clone the contianers
+                                let log_callbacks = Arc::clone(&self.log_callbacks);
+                                let file_positions_clone = Arc::clone(&file_positions);
+
+                                task::spawn(async move {
+                                    let log_callbacks = log_callbacks.lock().await;
+
+                                    // TODO deadlock if I modify the log_callbacks.
+                                    if let Some(callback) = log_callbacks.get(&path_str) {
+                                        let callback = Arc::clone(callback);
+
                                         let mut file_positions = file_positions_clone.lock().await;
                                         let position = file_positions
                                             .entry(path_str.clone())
@@ -232,8 +242,76 @@ impl LogWatcher {
                                                 callback("".into(), Some(log_error)).await;
                                             }
                                         }
-                                    });
-                                }
+                                    }
+                                });
+                                // }
+                                //
+                                // if let Some(callback) = self.log_callbacks.get(&path_str) {
+                                //     let callback = Arc::clone(callback);
+                                //     let file_positions_clone = Arc::clone(&file_positions);
+                                //
+                                //     task::spawn(async move {
+                                //         let mut file_positions = file_positions_clone.lock().await;
+                                //         let position = file_positions
+                                //             .entry(path_str.clone())
+                                //             .or_insert(std::u64::MAX);
+                                //
+                                //         // file open
+                                //         match File::open(&path_str).await {
+                                //             Ok(file) => {
+                                //                 let mut reader = BufReader::new(file);
+                                //                 let mut line = String::new();
+                                //
+                                //                 // need to set initial position
+                                //                 if *position == std::u64::MAX {
+                                //                     *position = find_last_line(&mut reader).await;
+                                //                 }
+                                //
+                                //                 // seek from *position
+                                //                 match reader
+                                //                     .seek(std::io::SeekFrom::Start(*position))
+                                //                     .await
+                                //                 {
+                                //                     Ok(_) => {
+                                //                         // check if a full line has been read
+                                //                         if reader
+                                //                             .read_line(&mut line)
+                                //                             .await
+                                //                             .unwrap()
+                                //                             > 0
+                                //                             && line.ends_with('\n')
+                                //                         {
+                                //                             *position += line.len() as u64;
+                                //
+                                //                             // remove trailing newline character, if present
+                                //                             if line.ends_with('\n') {
+                                //                                 line.pop();
+                                //                                 if line.ends_with('\r') {
+                                //                                     line.pop();
+                                //                                 }
+                                //                             }
+                                //                             callback(line, None).await;
+                                //                         }
+                                //                     }
+                                //                     Err(e) => {
+                                //                         let log_error = LogError {
+                                //                             kind: ErrorKind::FileSeekError(e),
+                                //                             path: path_str.clone(),
+                                //                         };
+                                //                         callback("".into(), Some(log_error)).await;
+                                //                     }
+                                //                 }
+                                //             }
+                                //             Err(e) => {
+                                //                 let log_error = LogError {
+                                //                     kind: ErrorKind::FileOpenError(e),
+                                //                     path: path_str.clone(),
+                                //                 };
+                                //                 callback("".into(), Some(log_error)).await;
+                                //             }
+                                //         }
+                                //     });
+                                // }
                             }
                         }
                         _ => {}
@@ -267,7 +345,6 @@ async fn find_last_line(reader: &mut BufReader<File>) -> u64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use async_std::io::prelude::*;
     use async_std::{
         fs::File,
         io::{BufReader, WriteExt},
@@ -332,7 +409,6 @@ mod tests {
 
         // stop monitoring log_file_1
         log_watcher.stop_monitoring_file(log_file_1).await.unwrap();
-
         // change the path of log_file_2 to log_file_3
         log_watcher
             .change_file_path(log_file_2, log_file_3)
@@ -345,9 +421,21 @@ mod tests {
         file_3.write_all(b"line 4\n").await.unwrap();
         file_3.sync_all().await.unwrap();
 
-        assert!(!log_watcher.log_callbacks.contains_key(log_file_1));
-        assert!(!log_watcher.log_callbacks.contains_key(log_file_2));
-        assert!(log_watcher.log_callbacks.contains_key(log_file_3));
+        assert!(!log_watcher
+            .log_callbacks
+            .lock()
+            .await
+            .contains_key(log_file_1));
+        assert!(!log_watcher
+            .log_callbacks
+            .lock()
+            .await
+            .contains_key(log_file_2));
+        assert!(log_watcher
+            .log_callbacks
+            .lock()
+            .await
+            .contains_key(log_file_3));
 
         // remove the test log files
         async_std::fs::remove_file(log_file_1).await.unwrap();
