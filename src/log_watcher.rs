@@ -216,12 +216,13 @@ impl LogWatcher {
                                                             *position += line.len() as u64;
 
                                                             // remove trailing newline character, if present
-                                                            if line.ends_with('\n') {
-                                                                line.pop();
-                                                                if line.ends_with('\r') {
-                                                                    line.pop();
-                                                                }
-                                                            }
+                                                            // use the trim_end_matches
+                                                            let line = line
+                                                                .trim_end_matches(|c| {
+                                                                    c == '\n' || c == '\r'
+                                                                })
+                                                                .to_owned();
+
                                                             callback(line, None).await;
                                                         }
                                                     }
@@ -244,74 +245,6 @@ impl LogWatcher {
                                         }
                                     }
                                 });
-                                // }
-                                //
-                                // if let Some(callback) = self.log_callbacks.get(&path_str) {
-                                //     let callback = Arc::clone(callback);
-                                //     let file_positions_clone = Arc::clone(&file_positions);
-                                //
-                                //     task::spawn(async move {
-                                //         let mut file_positions = file_positions_clone.lock().await;
-                                //         let position = file_positions
-                                //             .entry(path_str.clone())
-                                //             .or_insert(std::u64::MAX);
-                                //
-                                //         // file open
-                                //         match File::open(&path_str).await {
-                                //             Ok(file) => {
-                                //                 let mut reader = BufReader::new(file);
-                                //                 let mut line = String::new();
-                                //
-                                //                 // need to set initial position
-                                //                 if *position == std::u64::MAX {
-                                //                     *position = find_last_line(&mut reader).await;
-                                //                 }
-                                //
-                                //                 // seek from *position
-                                //                 match reader
-                                //                     .seek(std::io::SeekFrom::Start(*position))
-                                //                     .await
-                                //                 {
-                                //                     Ok(_) => {
-                                //                         // check if a full line has been read
-                                //                         if reader
-                                //                             .read_line(&mut line)
-                                //                             .await
-                                //                             .unwrap()
-                                //                             > 0
-                                //                             && line.ends_with('\n')
-                                //                         {
-                                //                             *position += line.len() as u64;
-                                //
-                                //                             // remove trailing newline character, if present
-                                //                             if line.ends_with('\n') {
-                                //                                 line.pop();
-                                //                                 if line.ends_with('\r') {
-                                //                                     line.pop();
-                                //                                 }
-                                //                             }
-                                //                             callback(line, None).await;
-                                //                         }
-                                //                     }
-                                //                     Err(e) => {
-                                //                         let log_error = LogError {
-                                //                             kind: ErrorKind::FileSeekError(e),
-                                //                             path: path_str.clone(),
-                                //                         };
-                                //                         callback("".into(), Some(log_error)).await;
-                                //                     }
-                                //                 }
-                                //             }
-                                //             Err(e) => {
-                                //                 let log_error = LogError {
-                                //                     kind: ErrorKind::FileOpenError(e),
-                                //                     path: path_str.clone(),
-                                //                 };
-                                //                 callback("".into(), Some(log_error)).await;
-                                //             }
-                                //         }
-                                //     });
-                                // }
                             }
                         }
                         _ => {}
