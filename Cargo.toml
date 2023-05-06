@@ -1,6 +1,6 @@
 [package]
 name = "async-log-watch"
-version = "0.1.8"
+version = "0.1.9"
 authors = ["Jaemin Kim <geminik23@gmail.com>"]
 edition = "2021"
 description = "A simple Rust library to monitor log files and trigger an async callback when a new line is added."

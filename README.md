@@ -79,19 +79,22 @@ Please note that you should only enable one of these features at a time.
 - [x] Error handling for file read errors
 - [x] Improve error handling with the `thiserror` library. - file errors occurs in spawn. 
 - [x] Notify error through callback
-
-**~~Add support for log file rotation~~** (decided not to add support)
 - [x] Added methods : stop_monitoring_file and change_file_path
 - [x] FIXED: absolute path in added methods | test code 
 - [ ] Update the callback function's arguments to include the functionalities.
 	- It allows user to handle log file rotation in the callback function when receiving a file open error
+
+**support tokio runtime**
 - [x] ~~Add support for other async runtimes (tokio)~~ 
 - [x] Add support tokio runtime features in async-std
+
+**Add filtering options to process specific log lines based on patterns**
+- [ ] filtering options.
 
 
 ## Future Works
 
-- Add filtering options to process specific log lines based on patterns
+- **~~Add support for log file rotation~~**
 
 ## License
 
