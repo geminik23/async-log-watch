@@ -39,10 +39,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .await?;
     Ok(())
 }
-
 ```
 
-## Features
+## Cargo Features
 
 This crate allows you to use `tokio` runtime featured in `async-std` by specifying features in your `Cargo.toml`. By default, it uses `async-std` with the `attributes` feature. 
 
@@ -94,7 +93,9 @@ Please note that you should only enable one of these features at a time.
 
 ## Future Works
 
+- Add support for **File name pattern** : automatically monitor files that match the specified pattern within a directory.
 - **~~Add support for log file rotation~~**
+- Add trace log
 
 ## License
 
