@@ -42,7 +42,34 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 ```
 
+## Features
+
+This crate allows you to use `tokio` runtime featured in `async-std` by specifying features in your `Cargo.toml`. By default, it uses `async-std` with the `attributes` feature. 
+
+To use the crate with the default configuration, add the following line to your `Cargo.toml`:
+
+```toml
+async-log-watch = "0.1"
+```
+
+To use a specific Tokio configuration, specify the feature like this:
+
+```toml
+my-crate = { version = "0.1", features = ["tokio1"] }
+```
+
+### Available Features
+
+- **default**: Uses `async-std` with the `attributes` feature.
+- **tokio1**: Uses `async-std` with the `attributes` and `tokio1` features.
+- **tokio02**: Uses `async-std` with the `attributes` and `tokio02` features.
+- **tokio03**: Uses `async-std` with the `attributes` and `tokio03` features.
+
+Please note that you should only enable one of these features at a time.
+
+
 ## TODO
+
 - [x] Implement basic log monitoring.
 - [x] Support async callbacks
 - [x] Allow monitoring multiple log files simultaneously

@@ -28,6 +28,9 @@ async_std_tokio1 = ["async-std/attributes", "async-std/tokio1"]
 async_std_tokio2 = ["async-std/attributes", "async-std/tokio02"]
 async_std_tokio3 = ["async-std/attributes", "async-std/tokio03"]
 
+[package.metadata.features]
+mutually_exclusive = ["default", "tokio1", "tokio01", "tokio03"]
+
 [lib]
 name = "async_log_watch"
 path = "src/lib.rs"
