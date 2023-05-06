@@ -1,15 +1,5 @@
 use async_log_watch::{LogError, LogWatcher};
 
-#[cfg(feature = "tokio-runtime")]
-use tokio::{
-    fs::{remove_file, File},
-    io::AsyncWriteExt,
-    sync::mpsc::channel,
-    task,
-    time::sleep,
-};
-
-#[cfg(feature = "async-std-runtime")]
 use async_std::{
     channel::bounded as channel,
     fs::{remove_file, File},
@@ -17,19 +7,7 @@ use async_std::{
     task::{self, sleep},
 };
 
-#[cfg(feature = "tokio-runtime")]
-#[tokio::test(flavor = "multi_thread")]
 async fn test_log_watcher() {
-    test_log_watcher_impl().await
-}
-
-#[cfg(feature = "async-std-runtime")]
-#[async_std::test]
-async fn test_log_watcher() {
-    test_log_watcher_impl().await
-}
-
-async fn test_log_watcher_impl() {
     let mut log_watcher = LogWatcher::new();
 
     let (tx, mut rx) = channel(1);
@@ -42,9 +20,7 @@ async fn test_log_watcher_impl() {
     log_watcher
         .register(filepath, move |line: String, err: Option<LogError>| {
             let tx = tx.clone();
-            println!("{}", line);
             async move {
-                println!("{}", line);
                 if err.is_none() {
                     tx.try_send(line).unwrap();
                 }

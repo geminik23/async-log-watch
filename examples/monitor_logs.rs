@@ -1,6 +1,7 @@
 use async_log_watch::{LogError, LogWatcher};
 
-async fn main_impl() -> Result<(), Box<dyn std::error::Error>> {
+#[async_std::main]
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let mut log_watcher = LogWatcher::new();
 
     let filepath = "~/.pm2/logs/r1-out.log";
@@ -18,16 +19,4 @@ async fn main_impl() -> Result<(), Box<dyn std::error::Error>> {
         .monitoring(std::time::Duration::from_secs(1))
         .await?;
     Ok(())
-}
-
-#[cfg(feature = "tokio-runtime")]
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    main_impl().await
-}
-
-#[cfg(feature = "async-std-runtime")]
-#[async_std::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    main_impl().await
 }

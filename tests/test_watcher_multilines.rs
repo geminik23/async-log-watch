@@ -1,14 +1,5 @@
 use async_log_watch::{LogError, LogWatcher};
 
-#[cfg(feature = "tokio-runtime")]
-use tokio::{
-    fs::{remove_file, File},
-    io::AsyncWriteExt,
-    task,
-    time::sleep,
-};
-
-#[cfg(feature = "async-std-runtime")]
 use async_std::{
     fs::{remove_file, File},
     io::prelude::*,
@@ -28,19 +19,8 @@ async fn write_lines(file_path: &str, lines: Vec<&str>, delay: Duration) {
     }
 }
 
-#[cfg(feature = "tokio-runtime")]
-#[tokio::test]
-async fn log_watcher_test() {
-    log_watcher_test_impl().await
-}
-
-#[cfg(feature = "async-std-runtime")]
 #[async_std::test]
 async fn log_watcher_test() {
-    log_watcher_test_impl().await
-}
-
-async fn log_watcher_test_impl() {
     // ready for log file
     let log_path = "test_log.txt";
     let _ = remove_file(log_path).await; // remove the file if it exists
