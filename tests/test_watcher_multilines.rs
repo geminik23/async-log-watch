@@ -1,5 +1,20 @@
 use async_log_watch::{LogError, LogWatcher};
-use async_std::{fs::File, io::prelude::*, task};
+
+#[cfg(feature = "tokio-runtime")]
+use tokio::{
+    fs::{remove_file, File},
+    io::AsyncWriteExt,
+    task,
+    time::sleep,
+};
+
+#[cfg(feature = "async-std-runtime")]
+use async_std::{
+    fs::{remove_file, File},
+    io::prelude::*,
+    task::{self, sleep},
+};
+
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -9,15 +24,26 @@ async fn write_lines(file_path: &str, lines: Vec<&str>, delay: Duration) {
 
     for line in lines {
         file.write_all(line.as_bytes()).await.unwrap();
-        task::sleep(delay).await;
+        sleep(delay).await;
     }
 }
 
+#[cfg(feature = "tokio-runtime")]
+#[tokio::test]
+async fn log_watcher_test() {
+    log_watcher_test_impl().await
+}
+
+#[cfg(feature = "async-std-runtime")]
 #[async_std::test]
 async fn log_watcher_test() {
+    log_watcher_test_impl().await
+}
+
+async fn log_watcher_test_impl() {
     // ready for log file
     let log_path = "test_log.txt";
-    let _ = async_std::fs::remove_file(log_path).await; // remove the file if it exists
+    let _ = remove_file(log_path).await; // remove the file if it exists
 
     // initialize the watcher
     let log_watcher = LogWatcher::new();
@@ -53,13 +79,12 @@ async fn log_watcher_test() {
         test_lines.clone(),
         Duration::from_millis(500), // write one line every 1 sec.
     ));
+    let _ = write_handle.await;
 
-    write_handle.await;
-
-    task::sleep(Duration::from_millis(500)).await;
+    sleep(Duration::from_millis(500)).await;
 
     // remove test log file
-    async_std::fs::remove_file(log_path).await.unwrap();
+    remove_file(log_path).await.unwrap();
 
     // assert line counts.
     assert_eq!(

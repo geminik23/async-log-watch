@@ -10,10 +10,25 @@ repository = "https://github.com/geminik23/async-log-watch"
 
 
 [dependencies]
-async-std = {version="1.12", features=["attributes"]}
+async-std = {version="1.12", features = ["attributes"], optional = true}
+tokio = { version = "1.14.0", features = ["full"], optional = true }
 notify = "5.1"
 shellexpand = "3.1"
 thiserror = "1.0"
+futures = "0.3"
+
+
+[dev-dependencies]
+async-std = { version = "1.9", features = ["attributes"] }
+tokio = { version = "1.0", features = ["full"] }
+
+[features]
+# default = ["async-std-runtime"]
+default = ["tokio-runtime"]
+async-std-runtime = ["async-std"]
+tokio-runtime = ["tokio"]
+
+_mutually_exclusive = ["async-std-runtime", "tokio-runtime"]
 
 [lib]
 name = "async_log_watch"
