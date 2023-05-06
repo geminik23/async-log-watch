@@ -94,7 +94,7 @@ Please note that you should only enable one of these features at a time.
 ## Future Works
 
 - Add support for **File name pattern** : automatically monitor files that match the specified pattern within a directory.
-- **~~Add support for log file rotation~~**
+- ~~Add support for log file rotation~~
 - Add trace log
 
 ## License

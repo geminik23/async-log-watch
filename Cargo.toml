@@ -6,6 +6,7 @@ edition = "2021"
 description = "A simple Rust library to monitor log files and trigger an async callback when a new line is added."
 license = "MIT"
 readme = "README.md"
+documentation = "https://docs.rs/async-log-watch"
 repository = "https://github.com/geminik23/async-log-watch"
 
 
