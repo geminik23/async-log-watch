@@ -18,14 +18,18 @@ async fn test_log_watcher() {
     let mut file = File::create(filepath).await.unwrap();
 
     log_watcher
-        .register(filepath, move |line: String, err: Option<LogError>| {
-            let tx = tx.clone();
-            async move {
-                if err.is_none() {
-                    tx.try_send(line).unwrap();
+        .register(
+            filepath,
+            move |line: String, err: Option<LogError>| {
+                let tx = tx.clone();
+                async move {
+                    if err.is_none() {
+                        tx.try_send(line).unwrap();
+                    }
                 }
-            }
-        })
+            },
+            None,
+        )
         .await;
 
     task::spawn(async move {

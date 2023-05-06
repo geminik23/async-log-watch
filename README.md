@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             } else {
                 eprintln!("{}", err.unwrap());
             }
-        })
+        }, None)
         .await;
 
     log_watcher
@@ -89,7 +89,7 @@ Please note that you should only enable one of these features at a time.
 - [x] Add support tokio runtime features in async-std
 
 **Add filtering options to process specific log lines based on patterns**
-- [ ] filtering options.
+- [x] Add filtering option
 
 
 ## Future Works

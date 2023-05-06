@@ -2,14 +2,12 @@ use async_std::{fs::File, io::BufReader, prelude::*, sync::Mutex, task};
 
 use notify::event::{DataChange, ModifyKind};
 use notify::{event::EventKind, RecommendedWatcher, RecursiveMode, Watcher};
+use regex::RegexSet;
+use shellexpand::tilde;
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{mpsc::channel, Arc};
-
-use futures::future::Future;
-
-use shellexpand::tilde;
 
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
@@ -60,7 +58,7 @@ pub type LogCallback = Arc<
 >;
 
 pub struct LogWatcher {
-    log_callbacks: Arc<Mutex<HashMap<String, LogCallback>>>,
+    log_callbacks: Arc<Mutex<HashMap<String, (LogCallback, Option<RegexSet>)>>>,
     watcher: Arc<Mutex<Option<RecommendedWatcher>>>,
 }
 
@@ -124,8 +122,12 @@ impl LogWatcher {
     }
 
     // register a file path and its associated callback function.
-    pub async fn register<P: AsRef<Path>, F, Fut>(&mut self, path: P, callback: F)
-    where
+    pub async fn register<P: AsRef<Path>, F, Fut>(
+        &mut self,
+        path: P,
+        callback: F,
+        patterns: Option<Vec<&str>>,
+    ) where
         F: Fn(String, Option<LogError>) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + Sync + 'static,
     {
@@ -139,7 +141,15 @@ impl LogWatcher {
                 Box::pin(callback(line, error))
             },
         );
-        self.log_callbacks.lock().await.insert(path, callback);
+        let regex_set = if let Some(patterns) = patterns {
+            Some(RegexSet::new(patterns).unwrap())
+        } else {
+            None
+        };
+        self.log_callbacks
+            .lock()
+            .await
+            .insert(path, (callback, regex_set));
     }
 
     // Start monitoring
@@ -176,10 +186,12 @@ impl LogWatcher {
                                 let file_positions_clone = Arc::clone(&file_positions);
 
                                 task::spawn(async move {
+                                    // to avoid the deadlock
                                     let log_callbacks = log_callbacks.lock().await;
 
-                                    // TODO deadlock if I modify the log_callbacks.
-                                    if let Some(callback) = log_callbacks.get(&path_str) {
+                                    if let Some((callback, regex_set)) =
+                                        log_callbacks.get(&path_str)
+                                    {
                                         let callback = Arc::clone(callback);
 
                                         let mut file_positions = file_positions_clone.lock().await;
@@ -222,7 +234,21 @@ impl LogWatcher {
                                                                 })
                                                                 .to_owned();
 
-                                                            callback(line, None).await;
+                                                            let notify = if let Some(regex_set) =
+                                                                regex_set
+                                                            {
+                                                                if regex_set.is_match(&line) {
+                                                                    true
+                                                                } else {
+                                                                    false
+                                                                }
+                                                            } else {
+                                                                true
+                                                            };
+
+                                                            if notify {
+                                                                callback(line, None).await;
+                                                            }
                                                         }
                                                     }
                                                     Err(e) => {
@@ -326,8 +352,12 @@ mod tests {
         let mut file_2 = File::create(log_file_2).await.unwrap();
         let mut file_3 = File::create(log_file_3).await.unwrap();
 
-        log_watcher.register(log_file_1, |_, _| async {}).await;
-        log_watcher.register(log_file_2, |_, _| async {}).await;
+        log_watcher
+            .register(log_file_1, |_, _| async {}, None)
+            .await;
+        log_watcher
+            .register(log_file_2, |_, _| async {}, None)
+            .await;
 
         // write data to log files
         file_1.write_all(b"line 1\n").await.unwrap();

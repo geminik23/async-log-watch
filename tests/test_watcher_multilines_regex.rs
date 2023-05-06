@@ -6,6 +6,7 @@ use async_std::{
     task::{self, sleep},
 };
 
+use regex::RegexSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -31,6 +32,9 @@ async fn log_watcher_test() {
 
     let detected_line_count = Arc::new(AtomicUsize::new(0));
 
+    // patterns to capture only lines containing "Error"
+    let patterns = vec!["error"];
+
     let detected_line_count_clone = detected_line_count.clone();
     log_watcher
         .register(
@@ -44,7 +48,7 @@ async fn log_watcher_test() {
                     }
                 }
             },
-            None,
+            Some(patterns),
         )
         .await;
 
@@ -56,7 +60,7 @@ async fn log_watcher_test() {
             .unwrap();
     });
 
-    let test_lines = vec!["test 1\n", "test 2\n", "test 3\n", "test 4\n"];
+    let test_lines = vec!["test 1\n", "test 2\n", "error : test 3\n", "test 4\n"];
 
     let write_handle = task::spawn(write_lines(
         log_path,
@@ -71,8 +75,5 @@ async fn log_watcher_test() {
     remove_file(log_path).await.unwrap();
 
     // assert line counts.
-    assert_eq!(
-        detected_line_count.load(Ordering::Relaxed),
-        test_lines.len()
-    );
+    assert_eq!(detected_line_count.load(Ordering::Relaxed), 1);
 }

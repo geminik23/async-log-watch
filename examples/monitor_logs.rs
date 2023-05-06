@@ -6,13 +6,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let filepath = "~/.pm2/logs/r1-out.log";
     log_watcher
-        .register(filepath, |line: String, err: Option<LogError>| async move {
-            if err.is_none() {
-                println!("New log line: {}", line);
-            } else {
-                eprintln!("{}", err.unwrap());
-            }
-        })
+        .register(
+            filepath,
+            |line: String, err: Option<LogError>| async move {
+                if err.is_none() {
+                    println!("New log line: {}", line);
+                } else {
+                    eprintln!("{}", err.unwrap());
+                }
+            },
+            None,
+        )
         .await;
 
     log_watcher
