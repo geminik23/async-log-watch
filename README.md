@@ -16,30 +16,8 @@ async-log-watch = {version = "0.2"}
 
 ### Example
 
-```rust
-use async_log_watch::{LogWatcher, LogError};
+For a example demonstrating the usage of this library, please refer to the [example code](./examples/monitor_logs.rs) in the `examples` folder.
 
-#[async_std::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut log_watcher = LogWatcher::new();
-
-    let filepath = "~/.pm2/logs/r1-out.log";
-    log_watcher
-        .register(filepath, |line: String, err: Option<LogError>| async move {
-            if err.is_none() {
-                println!("New log line: {}", line);
-            } else {
-                eprintln!("{}", err.unwrap());
-            }
-        }, None)
-        .await;
-
-    log_watcher
-        .monitoring(std::time::Duration::from_secs(1))
-        .await?;
-    Ok(())
-}
-```
 
 ## Cargo Features
 
