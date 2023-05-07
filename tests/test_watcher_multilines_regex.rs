@@ -1,4 +1,4 @@
-use async_log_watch::{LogError, LogWatcher};
+use async_log_watch::{LogEvent, LogWatcher};
 
 use async_std::{
     fs::{remove_file, File},
@@ -6,7 +6,6 @@ use async_std::{
     task::{self, sleep},
 };
 
-use regex::RegexSet;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::Arc;
 use std::time::Duration;
@@ -39,10 +38,10 @@ async fn log_watcher_test() {
     log_watcher
         .register(
             log_path,
-            move |line: String, err: Option<LogError>| {
+            move |log_event: LogEvent| {
                 let detected_line_count = detected_line_count_clone.clone();
                 async move {
-                    if err.is_none() {
+                    if let Some(line) = log_event.get_line() {
                         println!("New line detected: {}", line);
                         detected_line_count.fetch_add(1, Ordering::Relaxed);
                     }

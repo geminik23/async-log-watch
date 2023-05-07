@@ -11,7 +11,7 @@ Add `async-log-watch` to your `Cargo.toml` dependencies:
 
 ```toml
 [dependencies]
-async-log-watch = {version = "0.1"}
+async-log-watch = {version = "0.2"}
 ```
 
 ### Example
@@ -48,13 +48,13 @@ This crate allows you to use `tokio` runtime featured in `async-std` by specifyi
 To use the crate with the default configuration, add the following line to your `Cargo.toml`:
 
 ```toml
-async-log-watch = "0.1"
+async-log-watch = "0.2"
 ```
 
 To use a specific Tokio configuration, specify the feature like this:
 
 ```toml
-my-crate = { version = "0.1", features = ["tokio1"] }
+async-log-watch = { version = "0.2", features = ["tokio1"] }
 ```
 
 ### Available Features
@@ -80,6 +80,7 @@ Please note that you should only enable one of these features at a time.
 - [x] Notify error through callback
 - [x] Added methods : stop_monitoring_file and change_file_path
 - [x] FIXED: absolute path in added methods | test code 
+- [x] Added new object `LogEvent` that encapsulates the line, path and `LogError` object.
 - [ ] Update the callback function's arguments to include the functionalities.
 	- It allows user to handle log file rotation in the callback function when receiving a file open error
 
@@ -89,6 +90,7 @@ Please note that you should only enable one of these features at a time.
 
 **Add filtering options to process specific log lines based on patterns**
 - [x] Add filtering option
+
 
 
 ## Future Works

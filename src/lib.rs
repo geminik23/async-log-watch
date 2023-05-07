@@ -22,7 +22,7 @@ pub enum ErrorKind {
 #[derive(Debug)]
 pub struct LogError {
     pub kind: ErrorKind,
-    pub path: String,
+    // pub path: String,
 }
 
 impl LogError {
@@ -30,10 +30,12 @@ impl LogError {
     pub fn display_error(&self) -> String {
         match &self.kind {
             ErrorKind::FileOpenError(err) => {
-                format!("{:?} - {}", err, self.path)
+                // format!("{:?} - {}", err, self.path)
+                format!("{:?}", err)
             }
             ErrorKind::FileSeekError(err) => {
-                format!("{:?} - {}", err, self.path)
+                // format!("{:?} - {}", err, self.path)
+                format!("{:?}", err)
             }
         }
     }
@@ -54,39 +56,51 @@ pub enum Error {
 }
 
 //==== Events
-pub struct LogEvent{
+pub struct LogEvent {
     line: Option<String>,
-    log_error:Option<LogError>,
+    log_error: Option<LogError>,
     path: String,
-    log_watcher: Arc<Mutex<LogWatcher>>,
+    // log_watcher: Arc<Mutex<LogWatcher>>,
 }
 
-impl LogEvent{
-    pub async fn change_file_path(&self, new_path: &str) -> Result<(), Error>{
-        self.log_watcher.lock().await.change_file_path(&self.path, new_path).await
+impl LogEvent {
+    fn new(
+        path: String,
+        line: Option<String>,
+        error: Option<LogError>, /*, log_watcher:Arc<Mutex<LogWatcher>>*/
+    ) -> Self {
+        Self {
+            path,
+            line,
+            log_error: error,
+            // log_watcher
+        }
     }
 
-    pub async fn stop_monitoring_file(&self) -> Result<(), Error>{
-        self.log_watcher.lock().await.stop_monitoring_file(&self.path).await
+    // pub async fn change_file_path(&self, new_path: &str) -> Result<(), Error>{
+    //     self.log_watcher.lock().await.change_file_path(&self.path, new_path).await
+    // }
+    //
+    // pub async fn stop_monitoring_file(&self) -> Result<(), Error>{
+    //     self.log_watcher.lock().await.stop_monitoring_file(&self.path).await
+    // }
+    pub fn file_path(&self) -> &str {
+        self.path.as_str()
     }
 
-    pub fn get_line(&self)->Option<&String>{
+    pub fn get_line(&self) -> Option<&String> {
         self.line.as_ref()
     }
 
-    pub fn get_log_error(&self) -> Option<&LogError>{
+    pub fn get_log_error(&self) -> Option<&LogError> {
         self.log_error.as_ref()
     }
 }
 
 //==== Callback
 
-pub type LogCallback = Arc<
-    dyn Fn(String, Option<LogError>) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>
-        + Send
-        + Sync,
->;
-
+pub type LogCallback =
+    Arc<dyn Fn(LogEvent) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> + Send + Sync>;
 
 pub struct LogWatcher {
     log_callbacks: Arc<Mutex<HashMap<String, (LogCallback, Option<RegexSet>)>>>,
@@ -159,17 +173,15 @@ impl LogWatcher {
         callback: F,
         patterns: Option<Vec<&str>>,
     ) where
-        F: Fn(String, Option<LogError>) -> Fut + Send + Sync + 'static,
+        F: Fn(LogEvent) -> Fut + Send + Sync + 'static,
         Fut: std::future::Future<Output = ()> + Send + Sync + 'static,
     {
         let path = self.make_absolute_path(path.as_ref());
         let path = path.into_os_string().into_string().unwrap();
 
         let callback = Arc::new(
-            move |line: String,
-                  error: Option<LogError>|
-                  -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
-                Box::pin(callback(line, error))
+            move |log_event: LogEvent| -> Pin<Box<dyn Future<Output = ()> + Send + Sync>> {
+                Box::pin(callback(log_event))
             },
         );
         let regex_set = if let Some(patterns) = patterns {
@@ -278,25 +290,35 @@ impl LogWatcher {
                                                             };
 
                                                             if notify {
-                                                                callback(line, None).await;
+                                                                let event = LogEvent::new(
+                                                                    path_str,
+                                                                    Some(line),
+                                                                    None,
+                                                                );
+                                                                callback(event).await;
                                                             }
                                                         }
                                                     }
                                                     Err(e) => {
                                                         let log_error = LogError {
                                                             kind: ErrorKind::FileSeekError(e),
-                                                            path: path_str.clone(),
                                                         };
-                                                        callback("".into(), Some(log_error)).await;
+                                                        let event = LogEvent::new(
+                                                            path_str,
+                                                            None,
+                                                            Some(log_error),
+                                                        );
+                                                        callback(event).await;
                                                     }
                                                 }
                                             }
                                             Err(e) => {
                                                 let log_error = LogError {
                                                     kind: ErrorKind::FileOpenError(e),
-                                                    path: path_str.clone(),
                                                 };
-                                                callback("".into(), Some(log_error)).await;
+                                                let event =
+                                                    LogEvent::new(path_str, None, Some(log_error));
+                                                callback(event).await;
                                             }
                                         }
                                     }
@@ -383,12 +405,8 @@ mod tests {
         let mut file_2 = File::create(log_file_2).await.unwrap();
         let mut file_3 = File::create(log_file_3).await.unwrap();
 
-        log_watcher
-            .register(log_file_1, |_, _| async {}, None)
-            .await;
-        log_watcher
-            .register(log_file_2, |_, _| async {}, None)
-            .await;
+        log_watcher.register(log_file_1, |_| async {}, None).await;
+        log_watcher.register(log_file_2, |_| async {}, None).await;
 
         // write data to log files
         file_1.write_all(b"line 1\n").await.unwrap();

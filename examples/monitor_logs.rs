@@ -1,4 +1,4 @@
-use async_log_watch::{LogError, LogWatcher};
+use async_log_watch::{LogEvent, LogWatcher};
 
 #[async_std::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -8,11 +8,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     log_watcher
         .register(
             filepath,
-            |line: String, err: Option<LogError>| async move {
-                if err.is_none() {
-                    println!("New log line: {}", line);
+            |log_event: LogEvent| async move {
+                if let Some(err) = log_event.get_log_error() {
+                    eprintln!("{}", err);
                 } else {
-                    eprintln!("{}", err.unwrap());
+                    println!("New log line: {}", log_event.get_line().unwrap());
                 }
             },
             None,

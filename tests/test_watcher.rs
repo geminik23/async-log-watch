@@ -1,4 +1,4 @@
-use async_log_watch::{LogError, LogWatcher};
+use async_log_watch::{LogEvent, LogWatcher};
 
 use async_std::{
     channel::bounded as channel,
@@ -10,7 +10,7 @@ use async_std::{
 async fn test_log_watcher() {
     let mut log_watcher = LogWatcher::new();
 
-    let (tx, mut rx) = channel(1);
+    let (tx, rx) = channel(1);
     let filepath = "test-log.txt";
 
     let _ = remove_file(filepath).await; // Remove the file if it exists
@@ -20,11 +20,11 @@ async fn test_log_watcher() {
     log_watcher
         .register(
             filepath,
-            move |line: String, err: Option<LogError>| {
+            move |log_event: LogEvent| {
                 let tx = tx.clone();
                 async move {
-                    if err.is_none() {
-                        tx.try_send(line).unwrap();
+                    if let Some(line) = log_event.get_line() {
+                        tx.try_send(line.clone()).unwrap();
                     }
                 }
             },
