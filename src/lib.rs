@@ -9,6 +9,8 @@ use std::path::{Path, PathBuf};
 use std::pin::Pin;
 use std::sync::{mpsc::channel, Arc};
 
+//==== Errors
+
 #[derive(Debug, thiserror::Error)]
 pub enum ErrorKind {
     #[error("failed to open file - {0}")]
@@ -51,11 +53,40 @@ pub enum Error {
     RecvError(std::sync::mpsc::RecvError),
 }
 
+//==== Events
+pub struct LogEvent{
+    line: Option<String>,
+    log_error:Option<LogError>,
+    path: String,
+    log_watcher: Arc<Mutex<LogWatcher>>,
+}
+
+impl LogEvent{
+    pub async fn change_file_path(&self, new_path: &str) -> Result<(), Error>{
+        self.log_watcher.lock().await.change_file_path(&self.path, new_path).await
+    }
+
+    pub async fn stop_monitoring_file(&self) -> Result<(), Error>{
+        self.log_watcher.lock().await.stop_monitoring_file(&self.path).await
+    }
+
+    pub fn get_line(&self)->Option<&String>{
+        self.line.as_ref()
+    }
+
+    pub fn get_log_error(&self) -> Option<&LogError>{
+        self.log_error.as_ref()
+    }
+}
+
+//==== Callback
+
 pub type LogCallback = Arc<
     dyn Fn(String, Option<LogError>) -> Pin<Box<dyn Future<Output = ()> + Send + Sync>>
         + Send
         + Sync,
 >;
+
 
 pub struct LogWatcher {
     log_callbacks: Arc<Mutex<HashMap<String, (LogCallback, Option<RegexSet>)>>>,
